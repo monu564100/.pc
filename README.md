@@ -1,680 +1,427 @@
-1---->
-
-#include <stdio.h>
-#include <stdlib.h>
-#include <omp.h>
-
-void merge(int arr[], int l, int m, int r)
-{
-    int i, j, k;
-    int n1 = m - l + 1;
-    int n2 = r - m;
-
-    int *L = (int *)malloc(n1 * sizeof(int));
-    int *R = (int *)malloc(n2 * sizeof(int));
-
-    for (i = 0; i < n1; i++)
-        L[i] = arr[l + i];
-
-    for (j = 0; j < n2; j++)
-        R[j] = arr[m + 1 + j];
-
-    i = 0;
-    j = 0;
-    k = l;
-
-    while (i < n1 && j < n2)
-    {
-        if (L[i] <= R[j])
-            arr[k++] = L[i++];
-        else
-            arr[k++] = R[j++];
-    }
-
-    while (i < n1)
-        arr[k++] = L[i++];
-
-    while (j < n2)
-        arr[k++] = R[j++];
-
-    free(L);
-    free(R);
-}
-
-/* Sequential Merge Sort */
-void mergeSortSequential(int arr[], int l, int r)
-{
-    if (l < r)
-    {
-        int m = (l + r) / 2;
-
-        mergeSortSequential(arr, l, m);
-        mergeSortSequential(arr, m + 1, r);
-
-        merge(arr, l, m, r);
-    }
-}
-
-/* Parallel Merge Sort using Sections */
-void mergeSortParallel(int arr[], int l, int r)
-{
-    if (l < r)
-    {
-        int m = (l + r) / 2;
-
-        #pragma omp parallel sections
-        {
-            #pragma omp section
-            {
-                mergeSortSequential(arr, l, m);
-            }
-
-            #pragma omp section
-            {
-                mergeSortSequential(arr, m + 1, r);
-            }
-        }
-
-        merge(arr, l, m, r);
-    }
-}
-
-void copyArray(int src[], int dest[], int n)
-{
-    for (int i = 0; i < n; i++)
-        dest[i] = src[i];
-}
-
-int main()
-{
-    int n;
-
-    printf("Enter number of elements: ");
-    scanf("%d", &n);
-
-    int *arr = (int *)malloc(n * sizeof(int));
-    int *arr_seq = (int *)malloc(n * sizeof(int));
-    int *arr_par = (int *)malloc(n * sizeof(int));
-
-    /* Generate random array */
-    for (int i = 0; i < n; i++)
-        arr[i] = rand() % 100000;
-
-    copyArray(arr, arr_seq, n);
-    copyArray(arr, arr_par, n);
-
-    /* Sequential Merge Sort */
-    double start_seq = omp_get_wtime();
-
-    mergeSortSequential(arr_seq, 0, n - 1);
-
-    double end_seq = omp_get_wtime();
-
-    /* Parallel Merge Sort */
-    double start_par = omp_get_wtime();
-
-    mergeSortParallel(arr_par, 0, n - 1);
-
-    double end_par = omp_get_wtime();
-
-    double seq_time = end_seq - start_seq;
-    double par_time = end_par - start_par;
-
-    printf("\nSequential Merge Sort Time : %f seconds\n", seq_time);
-    printf("Parallel Merge Sort Time   : %f seconds\n", par_time);
-    printf("Time Difference            : %f seconds\n",
-           seq_time - par_time);
-
-    if (par_time > 0)
-        printf("Speedup                    : %f\n",
-               seq_time / par_time);
-
-    free(arr);
-    free(arr_seq);
-    free(arr_par);
-
-    return 0;
-}
-
-2----->
-
-#include <stdio.h>
-#include <omp.h>
-
-int main()
-{
-    int n, threads;
-
-    printf("Enter number of iterations: ");
-    scanf("%d", &n);
-
-    printf("Enter number of threads: ");
-    scanf("%d", &threads);
-
-    omp_set_num_threads(threads);
-
-    int iteration_owner[n];
-
-    #pragma omp parallel for schedule(static, 2)
-    for (int i = 0; i < n; i++)
-    {
-        iteration_owner[i] = omp_get_thread_num();
-    }
-
-    printf("\nIteration assignment:\n");
-
-    for (int i = 0; i < n; i += 2)
-    {
-        int thread_id = iteration_owner[i];
-
-        if (i + 1 < n)
-            printf("Thread %d : Iterations %d -- %d\n",
-                   thread_id, i, i + 1);
-        else
-            printf("Thread %d : Iteration %d\n",
-                   thread_id, i);
-    }
-
-    return 0;
-}
-
-
-3------->
-
-#include <stdio.h>
-#include <omp.h>
-#include <time.h>
-
-/* Serial Fibonacci */
-int ser_fib(int n)
-{
-    if (n < 2)
-        return n;
-
-    return ser_fib(n - 1) + ser_fib(n - 2);
-}
-
-/* Parallel Fibonacci using OpenMP Tasks */
-int par_fib(int n)
-{
-    if (n < 2)
-        return n;
-
-    int x, y;
-
-    #pragma omp task shared(x)
-    x = par_fib(n - 1);
-
-    #pragma omp task shared(y)
-    y = par_fib(n - 2);
-
-    #pragma omp taskwait
-
-    return x + y;
-}
-
-int main()
-{
-    int n, result;
-    clock_t start, end;
-    double cpu_time;
-
-    printf("Enter the value of n: ");
-    scanf("%d", &n);
-
-    /* Parallel Fibonacci */
-    start = clock();
-
-    #pragma omp parallel
-    {
-        #pragma omp single
-        {
-            result = par_fib(n);
-        }
-    }
-
-    end = clock();
-
-    cpu_time = ((double)(end - start)) / CLOCKS_PER_SEC;
-
-    printf("\nParallel Fibonacci(%d) = %d", n, result);
-    printf("\nTime taken in parallel mode: %f seconds", cpu_time);
-
-    /* Serial Fibonacci */
-    start = clock();
-
-    result = ser_fib(n);
-
-    end = clock();
-
-    cpu_time = ((double)(end - start)) / CLOCKS_PER_SEC;
-
-    printf("\n\nSerial Fibonacci(%d) = %d", n, result);
-    printf("\nTime taken in serial mode: %f seconds\n", cpu_time);
-
-    return 0;
-}
-
-
-4------->
-
-#include <stdio.h>
-#include <omp.h>
-#include <math.h>
-
-int is_prime(int num)
-{
-    if (num < 2)
-        return 0;
-
-    for (int i = 2; i <= sqrt(num); i++)
-    {
-        if (num % i == 0)
-            return 0;
-    }
-
-    return 1;
-}
-
-int main()
-{
-    int n;
-
-    printf("Enter the value of n: ");
-    scanf("%d", &n);
-
-    /* Serial execution */
-    double start_serial = omp_get_wtime();
-
-    printf("\nPrime numbers (Serial):\n");
-
-    for (int i = 1; i <= n; i++)
-    {
-        if (is_prime(i))
-            printf("%d ", i);
-    }
-
-    double end_serial = omp_get_wtime();
-
-    printf("\nSerial execution time: %f seconds\n",
-           end_serial - start_serial);
-
-
-    /* Parallel execution */
-    double start_parallel = omp_get_wtime();
-
-    printf("\nPrime numbers (Parallel):\n");
-
-    #pragma omp parallel for schedule(static)
-    for (int i = 1; i <= n; i++)
-    {
-        if (is_prime(i))
-        {
-            #pragma omp critical
-            {
-                printf("%d ", i);
+PROGRAM 1
+Hadoop File Management
+
+mkdir Hadoop
+cd Hadoop
+vi hello.txt
+cat hello.txt
+hdfs dfs -mkdir /today
+hdfs dfs -put hello.txt /today/data.txt
+hdfs dfs -mkdir /input
+hdfs dfs -cp /today/data.txt /input/data.txt
+hdfs dfs -cat /input/data.txt
+hdfs dfs -get /input/data.txt
+hdfs dfs -rm /today/data.txt
+hdfs dfs -rmdir /today
+hdfs dfs -ls /
+hdfs dfs -ls /input
+
+
+PROGRAM 2
+MatrixMultiplication.java
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class MatrixMultiplication {
+    public static class Map extends Mapper<Object, Text, Text, Text> {
+        public void map(Object key, Text value, Context context)
+                throws IOException, InterruptedException {
+            String[] x = value.toString().split(",");
+            if (x.length != 4) return;
+            String matrix = x[0].trim();
+            int r = Integer.parseInt(x[1].trim());
+            int c = Integer.parseInt(x[2].trim());
+            float v = Float.parseFloat(x[3].trim());
+            int rowsA = context.getConfiguration().getInt("rowsA", 2);
+            int colsB = context.getConfiguration().getInt("colsB", 2);
+            if (matrix.equals("A")) {
+                for (int j = 0; j < colsB; j++)
+                    context.write(new Text(r + "," + j), new Text("A," + c + "," + v));
+            } else if (matrix.equals("B")) {
+                for (int i = 0; i < rowsA; i++)
+                    context.write(new Text(i + "," + c), new Text("B," + r + "," + v));
             }
         }
     }
 
-    double end_parallel = omp_get_wtime();
+    public static class Reduce extends Reducer<Text, Text, Text, FloatWritable> {
+        public void reduce(Text key, Iterable<Text> values, Context context)
+                throws IOException, InterruptedException {
+            Map<Integer, Float> a = new HashMap<>();
+            Map<Integer, Float> b = new HashMap<>();
+            for (Text value : values) {
+                String[] x = value.toString().split(",");
+                int k = Integer.parseInt(x[1]);
+                float v = Float.parseFloat(x[2]);
+                if (x[0].equals("A")) a.put(k, v);
+                else b.put(k, v);
+            }
+            float sum = 0;
+            for (Map.Entry<Integer, Float> e : a.entrySet())
+                if (b.containsKey(e.getKey())) sum += e.getValue() * b.get(e.getKey());
+            context.write(key, new FloatWritable(sum));
+        }
+    }
 
-    printf("\nParallel execution time: %f seconds\n",
-           end_parallel - start_parallel);
-
-    return 0;
+    public static void main(String[] args) throws Exception {
+        if (args.length != 4) {
+            System.err.println("Usage: MatrixMultiplication <input> <output> <rowsA> <colsB>");
+            System.exit(1);
+        }
+        Configuration conf = new Configuration();
+        conf.setInt("rowsA", Integer.parseInt(args[2]));
+        conf.setInt("colsB", Integer.parseInt(args[3]));
+        Job job = Job.getInstance(conf, "Matrix Multiplication");
+        job.setJarByClass(MatrixMultiplication.class);
+        job.setMapperClass(Map.class);
+        job.setReducerClass(Reduce.class);
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(Text.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(FloatWritable.class);
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
 }
 
-5-------->
+matrix.txt
+A,0,0,1
+A,0,1,2
+A,1,0,3
+A,1,1,4
+B,0,0,5
+B,0,1,6
+B,1,0,7
+B,1,1,8
 
-#include <stdio.h>
-#include <mpi.h>
+Execution:
+hadoop com.sun.tools.javac.Main MatrixMultiplication.java
+jar cf matrix.jar MatrixMultiplication*.class
+hdfs dfs -mkdir -p /matrix/input
+hdfs dfs -put matrix.txt /matrix/input/
+hadoop jar matrix.jar MatrixMultiplication /matrix/input /matrix/output 2 2
+hdfs dfs -cat /matrix/output/part-r-00000
 
-int main(int argc, char *argv[])
-{
-    int rank, size;
-    int number;
 
-    /* Initialize MPI */
-    MPI_Init(&argc, &argv);
+PROGRAM 3
+WeatherMapReduce1.java
+import java.io.IOException;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
-    /* Get number of processes */
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-    /* Get process rank */
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    /* At least 2 processes are required */
-    if (size < 2)
-    {
-        if (rank == 0)
-            printf("This program requires at least 2 processes.\n");
-
-        MPI_Finalize();
-        return 0;
+public class WeatherMapReduce1 {
+    public static class Map extends Mapper<Object, Text, Text, Text> {
+        public void map(Object key, Text value, Context context)
+                throws IOException, InterruptedException {
+            String[] data = value.toString().split(",");
+            if (data.length < 2) return;
+            String city = data[0].trim();
+            double temp = Double.parseDouble(data[1].trim());
+            String condition;
+            if (temp < 0) condition = "Freezing";
+            else if (temp <= 15) condition = "Cold";
+            else if (temp <= 25) condition = "Warm";
+            else condition = "Hot";
+            context.write(new Text(city), new Text(condition));
+        }
     }
 
-    /* Process 0 sends data */
-    if (rank == 0)
-    {
-        number = 42;
-
-        printf("Process 0 is sending number %d to Process 1\n",
-               number);
-
-        MPI_Send(
-            &number,        // Data to send
-            1,              // Number of elements
-            MPI_INT,        // Data type
-            1,              // Destination process
-            0,              // Message tag
-            MPI_COMM_WORLD  // Communicator
-        );
+    public static class Reduce extends Reducer<Text, Text, Text, Text> {
+        public void reduce(Text key, Iterable<Text> values, Context context)
+                throws IOException, InterruptedException {
+            StringBuilder result = new StringBuilder();
+            for (Text value : values) {
+                if (result.length() > 0) result.append(" ");
+                result.append(value.toString());
+            }
+            context.write(key, new Text(result.toString()));
+        }
     }
 
-    /* Process 1 receives data */
-    else if (rank == 1)
-    {
-        MPI_Recv(
-            &number,        // Buffer to receive data
-            1,              // Number of elements
-            MPI_INT,        // Data type
-            0,              // Source process
-            0,              // Message tag
-            MPI_COMM_WORLD,
-            MPI_STATUS_IGNORE
-        );
-
-        printf("Process 1 received number %d from Process 0\n",
-               number);
+    public static void main(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: WeatherMapReduce1 <input> <output>");
+            System.exit(1);
+        }
+        Job job = Job.getInstance(new Configuration(), "Weather");
+        job.setJarByClass(WeatherMapReduce1.class);
+        job.setMapperClass(Map.class);
+        job.setReducerClass(Reduce.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(Text.class);
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
     }
-
-    /* Finalize MPI */
-    MPI_Finalize();
-
-    return 0;
 }
 
+weather.txt
+New York,5
+Los Angeles,25
+Chicago,-3
+Miami,30
 
-6------->
+Execution:
+hadoop com.sun.tools.javac.Main WeatherMapReduce1.java
+jar cf weather.jar WeatherMapReduce1*.class
+hdfs dfs -mkdir -p /weather/input
+hdfs dfs -put weather.txt /weather/input/
+hadoop jar weather.jar WeatherMapReduce1 /weather/input /weather/output
+hdfs dfs -cat /weather/output/part-r-00000
 
 
-#include <stdio.h>
-#include <stdlib.h>
-#include <mpi.h>
+PROGRAM 4
+MovieTags.java
+import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
 
-int main(int argc, char *argv[])
-{
-    int rank;
-    int data_send, data_recv;
-
-    MPI_Init(&argc, &argv);
-
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    data_send = rank;
-
-    /* Deadlock situation */
-    if (rank == 0)
-    {
-        printf("Process 0: Sending data to Process 1...\n");
-
-        MPI_Send(&data_send, 1, MPI_INT, 1, 0, MPI_COMM_WORLD);
-
-        MPI_Recv(&data_recv, 1, MPI_INT, 1, 0,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+public class MovieTags {
+    public static class Map extends Mapper<Object, Text, Text, Text> {
+        public void map(Object key, Text value, Context context)
+                throws IOException, InterruptedException {
+            String[] data = value.toString().split(",");
+            if (data.length == 4)
+                context.write(new Text(data[1].trim()), new Text(data[2].trim()));
+        }
     }
-    else if (rank == 1)
-    {
-        printf("Process 1: Sending data to Process 0...\n");
 
-        MPI_Send(&data_send, 1, MPI_INT, 0, 0, MPI_COMM_WORLD);
-
-        MPI_Recv(&data_recv, 1, MPI_INT, 0, 0,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+    public static class Reduce extends Reducer<Text, Text, Text, Text> {
+        public void reduce(Text key, Iterable<Text> values, Context context)
+                throws IOException, InterruptedException {
+            Set<String> tags = new HashSet<>();
+            for (Text value : values) tags.add(value.toString().trim());
+            context.write(key, new Text(String.join(", ", tags)));
+        }
     }
 
-    printf("Process %d received %d\n", rank, data_recv);
-
-    MPI_Finalize();
-
-    return 0;
+    public static void main(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: MovieTags <input> <output>");
+            System.exit(1);
+        }
+        Job job = Job.getInstance(new Configuration(), "Movie Tags");
+        job.setJarByClass(MovieTags.class);
+        job.setMapperClass(Map.class);
+        job.setReducerClass(Reduce.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(Text.class);
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
 }
 
+tags.csv
+1,101,comedy,1234567890
+2,101,drama,1234567891
+3,102,action,1234567892
+4,101,comedy,1234567893
+5,102,thriller,1234567894
 
-#include <stdio.h>
-#include <mpi.h>
+Execution:
+hadoop com.sun.tools.javac.Main MovieTags.java
+jar cf movietags.jar MovieTags*.class
+hdfs dfs -mkdir -p /movies/input
+hdfs dfs -put tags.csv /movies/input/
+hadoop jar movietags.jar MovieTags /movies/input /movies/output
+hdfs dfs -cat /movies/output/part-r-00000
 
-int main(int argc, char *argv[])
-{
-    int rank;
-    int data_send, data_recv;
 
-    MPI_Init(&argc, &argv);
+PROGRAM 5
+MongoDB Count, Sort, Limit, Skip and Aggregate
 
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
+use BDA
 
-    data_send = rank;
+db.users.insertMany([
+  { name: "Alice", age: 30, gender: "Female", city: "New York" },
+  { name: "Bob", age: 25, gender: "Male", city: "Los Angeles" },
+  { name: "Charlie", age: 35, gender: "Male", city: "Chicago" },
+  { name: "David", age: 28, gender: "Male", city: "San Francisco" },
+  { name: "Eve", age: 22, gender: "Female", city: "Boston" },
+  { name: "Frank", age: 40, gender: "Male", city: "Houston" },
+  { name: "Grace", age: 27, gender: "Female", city: "Miami" },
+  { name: "Hannah", age: 29, gender: "Female", city: "Seattle" },
+  { name: "Isaac", age: 31, gender: "Male", city: "Denver" },
+  { name: "Jack", age: 26, gender: "Male", city: "Dallas" }
+])
 
-    if (rank == 0)
-    {
-        /* Process 0 sends first */
-        printf("Process 0: Sending %d to Process 1\n",
-               data_send);
+db.users.countDocuments({})
+db.users.countDocuments({ age: { $gt: 25 } })
+db.users.find().sort({ age: 1 })
+db.users.find().limit(5)
+db.users.find().skip(9)
+db.users.aggregate([
+  { $match: { age: { $gt: 25 } } },
+  { $group: { _id: "$gender", count: { $sum: 1 } } },
+  { $sort: { count: -1 } },
+  { $limit: 5 }
+])
+db.users.find().sort({ age: -1 }).skip(3).limit(5)
 
-        MPI_Send(&data_send, 1, MPI_INT, 1, 0,
-                 MPI_COMM_WORLD);
 
-        MPI_Recv(&data_recv, 1, MPI_INT, 1, 0,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
+PROGRAM 6
+Pig Latin Scripts
 
-        printf("Process 0 received %d\n", data_recv);
+employees.txt
+101,John,IT,50000
+102,Susan,HR,60000
+103,David,IT,55000
+104,Emma,Finance,75000
+105,James,HR,62000
+106,Robert,IT,58000
+
+departments.txt
+IT,Information Technology
+HR,Human Resources
+Finance,Finance Department
+
+sort.pig
+employees = LOAD 'employees.txt' USING PigStorage(',') AS (id:int, name:chararray, dept:chararray, salary:int);
+sorted_employees = ORDER employees BY salary DESC;
+DUMP sorted_employees;
+
+group.pig
+employees = LOAD 'employees.txt' USING PigStorage(',') AS (id:int, name:chararray, dept:chararray, salary:int);
+grouped_employees = GROUP employees BY dept;
+DUMP grouped_employees;
+
+join.pig
+employees = LOAD 'employees.txt' USING PigStorage(',') AS (id:int, name:chararray, dept:chararray, salary:int);
+departments = LOAD 'departments.txt' USING PigStorage(',') AS (dept_code:chararray, dept_name:chararray);
+joined_data = JOIN employees BY dept, departments BY dept_code;
+projected_data = FOREACH joined_data GENERATE employees::id, employees::name, departments::dept_name, employees::salary;
+DUMP projected_data;
+
+project.pig
+employees = LOAD 'employees.txt' USING PigStorage(',') AS (id:int, name:chararray, dept:chararray, salary:int);
+projected_data = FOREACH employees GENERATE name, salary;
+DUMP projected_data;
+
+filter.pig
+employees = LOAD 'employees.txt' USING PigStorage(',') AS (id:int, name:chararray, dept:chararray, salary:int);
+filtered_employees = FILTER employees BY salary > 55000;
+DUMP filtered_employees;
+
+Execution:
+pig -x local sort.pig
+pig -x local group.pig
+pig -x local join.pig
+pig -x local project.pig
+pig -x local filter.pig
+
+
+PROGRAM 8
+Word Count Using Hadoop and Spark
+
+WordCount.java
+import java.io.IOException;
+import java.util.StringTokenizer;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.Path;
+import org.apache.hadoop.io.IntWritable;
+import org.apache.hadoop.io.Text;
+import org.apache.hadoop.mapreduce.Job;
+import org.apache.hadoop.mapreduce.Mapper;
+import org.apache.hadoop.mapreduce.Reducer;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class WordCount {
+    public static class TokenizerMapper extends Mapper<Object, Text, Text, IntWritable> {
+        private final static IntWritable one = new IntWritable(1);
+        private Text word = new Text();
+
+        public void map(Object key, Text value, Context context)
+                throws IOException, InterruptedException {
+            StringTokenizer itr = new StringTokenizer(value.toString());
+            while (itr.hasMoreTokens()) {
+                word.set(itr.nextToken().replaceAll("[^a-zA-Z0-9]", "").toLowerCase());
+                if (!word.toString().isEmpty()) context.write(word, one);
+            }
+        }
     }
-    else if (rank == 1)
-    {
-        /* Process 1 receives first */
-        MPI_Recv(&data_recv, 1, MPI_INT, 0, 0,
-                 MPI_COMM_WORLD, MPI_STATUS_IGNORE);
 
-        printf("Process 1 received %d\n", data_recv);
+    public static class IntSumReducer extends Reducer<Text, IntWritable, Text, IntWritable> {
+        private IntWritable result = new IntWritable();
 
-        printf("Process 1: Sending %d to Process 0\n",
-               data_send);
-
-        MPI_Send(&data_send, 1, MPI_INT, 0, 0,
-                 MPI_COMM_WORLD);
+        public void reduce(Text key, Iterable<IntWritable> values, Context context)
+                throws IOException, InterruptedException {
+            int sum = 0;
+            for (IntWritable val : values) sum += val.get();
+            result.set(sum);
+            context.write(key, result);
+        }
     }
 
-    MPI_Finalize();
-
-    return 0;
+    public static void main(String[] args) throws Exception {
+        if (args.length != 2) {
+            System.err.println("Usage: WordCount <input> <output>");
+            System.exit(1);
+        }
+        Configuration conf = new Configuration();
+        Job job = Job.getInstance(conf, "word count");
+        job.setJarByClass(WordCount.class);
+        job.setMapperClass(TokenizerMapper.class);
+        job.setCombinerClass(IntSumReducer.class);
+        job.setReducerClass(IntSumReducer.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
+        FileInputFormat.addInputPath(job, new Path(args[0]));
+        FileOutputFormat.setOutputPath(job, new Path(args[1]));
+        System.exit(job.waitForCompletion(true) ? 0 : 1);
+    }
 }
 
-7------>
+input.txt
+Hello world
+Hello BDA
+Hi Hello
 
-#include <stdio.h>
-#include <mpi.h>
+Execution:
+hadoop com.sun.tools.javac.Main WordCount.java
+jar cf wordcount.jar WordCount*.class
+hdfs dfs -mkdir -p /wordcount/input
+hdfs dfs -put input.txt /wordcount/input/
+hadoop jar wordcount.jar WordCount /wordcount/input /wordcount/output
+hdfs dfs -cat /wordcount/output/part-r-00000
 
-int main(int argc, char **argv)
-{
-    int rank;
-    int data = 0;
+wordcount.py
+from pyspark import SparkContext
 
-    /* Initialize MPI */
-    MPI_Init(&argc, &argv);
+sc = SparkContext("local", "Word Count")
+text_file = sc.textFile("file:///home/aindsl504022/input.txt")
+word_counts = (
+    text_file
+    .flatMap(lambda line: line.split())
+    .map(lambda word: (word, 1))
+    .reduceByKey(lambda a, b: a + b)
+)
+print(word_counts.collect())
+word_counts.saveAsTextFile("file:///home/aindsl504022/output")
+sc.stop()
 
-    /* Get process rank */
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-
-    /* Process 0 initializes the data */
-    if (rank == 0)
-    {
-        data = 100;
-    }
-
-    /* Broadcast data from process 0 to all processes */
-    MPI_Bcast(
-        &data,          // Data buffer
-        1,              // Number of elements
-        MPI_INT,        // Data type
-        0,              // Root process
-        MPI_COMM_WORLD  // Communicator
-    );
-
-    /* Print received data */
-    printf("Process %d received data: %d\n", rank, data);
-
-    /* Finalize MPI */
-    MPI_Finalize();
-
-    return 0;
-}
-
-
-8-------->
-
-#include <stdio.h>
-#include <mpi.h>
-
-int main(int argc, char **argv)
-{
-    int rank, size;
-
-    int send_data[4] = {10, 20, 30, 40};
-    int recv_data;
-
-    /* Initialize MPI */
-    MPI_Init(&argc, &argv);
-
-    /* Get process rank and number of processes */
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-    /* Program requires exactly 4 processes */
-    if (size != 4)
-    {
-        if (rank == 0)
-            printf("Please run the program with exactly 4 processes.\n");
-
-        MPI_Finalize();
-        return 0;
-    }
-
-    /* Scatter data from process 0 to all processes */
-    MPI_Scatter(
-        send_data,      // Data at root
-        1,              // Elements sent to each process
-        MPI_INT,        // Send data type
-        &recv_data,     // Receive buffer
-        1,              // Elements received
-        MPI_INT,        // Receive data type
-        0,              // Root process
-        MPI_COMM_WORLD
-    );
-
-    printf("Process %d received: %d\n", rank, recv_data);
-
-    /* Perform some operation */
-    recv_data = recv_data + 1;
-
-    /* Gather results back to process 0 */
-    MPI_Gather(
-        &recv_data,     // Data to send
-        1,              // Elements sent
-        MPI_INT,
-        send_data,      // Receive buffer at root
-        1,              // Elements received from each process
-        MPI_INT,
-        0,              // Root process
-        MPI_COMM_WORLD
-    );
-
-    /* Process 0 displays gathered data */
-    if (rank == 0)
-    {
-        printf("Gathered data: ");
-
-        for (int i = 0; i < size; i++)
-            printf("%d ", send_data[i]);
-
-        printf("\n");
-    }
-
-    MPI_Finalize();
-
-    return 0;
-}
-
-
-9----->
-
-
-#include <stdio.h>
-#include <mpi.h>
-
-int main(int argc, char **argv)
-{
-    int rank, size;
-    int value;
-
-    int sum, max, min, prod;
-    int all_sum, all_max, all_min, all_prod;
-
-    /* Initialize MPI */
-    MPI_Init(&argc, &argv);
-
-    /* Get rank and number of processes */
-    MPI_Comm_rank(MPI_COMM_WORLD, &rank);
-    MPI_Comm_size(MPI_COMM_WORLD, &size);
-
-    /* Each process gets a different value */
-    value = rank + 1;
-
-    /* MPI_Reduce operations */
-    MPI_Reduce(&value, &sum, 1, MPI_INT,
-               MPI_SUM, 0, MPI_COMM_WORLD);
-
-    MPI_Reduce(&value, &max, 1, MPI_INT,
-               MPI_MAX, 0, MPI_COMM_WORLD);
-
-    MPI_Reduce(&value, &min, 1, MPI_INT,
-               MPI_MIN, 0, MPI_COMM_WORLD);
-
-    MPI_Reduce(&value, &prod, 1, MPI_INT,
-               MPI_PROD, 0, MPI_COMM_WORLD);
-
-    /* Display Reduce results only at root */
-    if (rank == 0)
-    {
-        printf("MPI_Reduce Results:\n");
-        printf("Sum     = %d\n", sum);
-        printf("Maximum = %d\n", max);
-        printf("Minimum = %d\n", min);
-        printf("Product = %d\n", prod);
-    }
-
-    /* MPI_Allreduce operations */
-
-    MPI_Allreduce(&value, &all_sum, 1, MPI_INT,
-                  MPI_SUM, MPI_COMM_WORLD);
-
-    MPI_Allreduce(&value, &all_max, 1, MPI_INT,
-                  MPI_MAX, MPI_COMM_WORLD);
-
-    MPI_Allreduce(&value, &all_min, 1, MPI_INT,
-                  MPI_MIN, MPI_COMM_WORLD);
-
-    MPI_Allreduce(&value, &all_prod, 1, MPI_INT,
-                  MPI_PROD, MPI_COMM_WORLD);
-
-    /* Every process receives the result */
-    printf("\nProcess %d: Value = %d\n", rank, value);
-    printf("Process %d: Allreduce SUM = %d\n", rank, all_sum);
-    printf("Process %d: Allreduce MAX = %d\n", rank, all_max);
-    printf("Process %d: Allreduce MIN = %d\n", rank, all_min);
-    printf("Process %d: Allreduce PROD = %d\n", rank, all_prod);
-
-    MPI_Finalize();
-
-    return 0;
-}
+Spark execution:
+spark-submit wordcount.py
