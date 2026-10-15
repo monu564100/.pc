@@ -425,3 +425,37 @@ sc.stop()
 
 Spark execution:
 spark-submit wordcount.py
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+gedit WeatherMapReduce.java // creation of java file - filename and main class name should be same
+sudo update-alternatives --config javac
+mapred classpath
+export CLASSPATH=" paste the previous path "
+javac -source 8 -target 8 filename.java
+
+before the next step create a folder with the name "WM"
+jar -cvf WM.jar -C WM /.
+
+before the next step create a input file with the name weather.txt and add 5 values into that file then perform below steps
+
+hdfs dfs -put weather.txt /input3
+
+hadoop jar WM.jar filename /input3 /output3
+
+hdfs dfs -ls /output3
+
+hdfs dfs -cat /output3/part-r-00000
